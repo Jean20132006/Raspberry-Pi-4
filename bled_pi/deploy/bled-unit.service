@@ -1,0 +1,17 @@
+[Unit]
+Description=BLED measurement unit (Raspberry Pi 4)
+After=multi-user.target
+
+[Service]
+# Type=notify + WatchdogSec: systemd restarts the program if it stops saying "I am alive"
+Type=notify
+NotifyAccess=main
+WatchdogSec=15
+User=pi
+WorkingDirectory=/home/pi/bled_pi
+ExecStart=/usr/bin/python3 -m bled_unit.main
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
