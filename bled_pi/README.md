@@ -70,8 +70,8 @@ Logs: `journalctl -u bled-unit -f` and `~/bled_data/bled_unit.log`.  Case files:
 
 | Function | Pi pin | Connects to |
 |---|---|---|
-| UART TX (GPIO14) | 8 | display **RX = IO19** |
-| UART RX (GPIO15) | 10 | display **TX = IO20** |
+| UART TX (GPIO14) | 8 | display **RX = IO44** |
+| UART RX (GPIO15) | 10 | display **TX = IO43** |
 | GND | 6 | display GND (TX and RX are **crossed**, GND is shared) |
 | I2C SDA / SCL (GPIO2 / GPIO3) | 3 / 5 | ADS1115 SDA / SCL (VDD 3.3 V, ADDR to GND = 0x48) |
 | LED 540 nm (GPIO17) | 11 | input of an LED **constant-current driver** |
