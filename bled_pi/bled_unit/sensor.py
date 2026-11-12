@@ -1,5 +1,8 @@
 """
-sensor.py - takes ONE reliable set of light readings (the slide "Reading the sensor reliably").
+sensor.py - takes ONE reliable set of light readings.
+Return: - average of (i540 - dark) of N samples
+        - average of (i850 - dark) of N samples
+        - how spread the measurement was
 
 One reading set =
     1. DARK:  all LEDs off, wait, average N ADC samples      -> stray light + electronic offset
@@ -11,12 +14,15 @@ One reading set =
 """
 from __future__ import annotations
 
+import logging                                           # prints the readings to the terminal and the log file
 import threading                                         # Event used to cancel a measurement
 from dataclasses import dataclass                        # result container
 from typing import Callable, List, Optional
 
 from .config import Config
 from .hardware import Hardware
+
+log = logging.getLogger("bled.sensor")                    # messages from this file are tagged bled.sensor
 
 
 class Cancelled(Exception):
@@ -46,7 +52,7 @@ class OpticalReader:
     """Knows how to flash the LEDs and average the ADC.  One object is used for all measurements."""
 
     def __init__(self, hw: Hardware, cfg: Config, cancel: threading.Event) -> None:
-        self.hw = hw                                     # the (real or fake) hardware
+        self.hw = hw                                     # the hardware
         self.cfg = cfg                                   # timings and thresholds
         self.cancel = cancel                             # set() from another thread to abort
 
@@ -77,8 +83,9 @@ class OpticalReader:
             self._wait(self.cfg.led_settle_s)            # LED brightness and photodiode settle
             return self._average()                       # take the samples
         finally:
-            self.hw.leds_off()                           # LED off even if we were cancelled or an error occurred
-
+            self.hw.leds_off()
+                                       # LED off even if we were cancelled or an error occurred
+    """how much the repeated measurement rounds disagree with each other """
     @staticmethod
     def _spread_pct(values: List[float]) -> float:
         """(max - min) / mean in percent: how much the rounds disagree."""
@@ -124,13 +131,21 @@ class OpticalReader:
         if progress is not None:
             progress(1.0)                                # finished
         dark = (dark1 + dark2) / 2.0                     # average dark level cancels slow drift
-        # --- saturation check on the RAW values (before subtracting anything)
-        if max(v540 + v850) > cfg.adc_max_ok:            # ADC (nearly) full: too much light
-            raise OpticalError(4, "optical over-range: ADC saturated (%.0f counts)" % max(v540 + v850))
         net540 = [v - dark for v in v540]                # dark-corrected 540 nm rounds
         net850 = [v - dark for v in v850]                # dark-corrected IR rounds
         m540 = sum(net540) / len(net540)                 # mean 540 nm signal
         m850 = sum(net850) / len(net850)                 # mean IR signal
+        s540, s850 = self._spread_pct(net540), self._spread_pct(net850)   # disagreement between rounds
+        # --- print what was measured BEFORE any check, so the numbers are visible even when the reading is rejected
+        log.info("%s reading: dark=%.0f (before %.0f, after %.0f) | 540 nm: raw mean=%.0f net mean=%.0f spread=%.2f %% | "
+                 "IR: raw mean=%.0f net mean=%.0f spread=%.2f %% | limits: spread<=%.1f %%, net>=%.0f, raw<=%.0f",
+                 kind, dark, dark1, dark2,
+                 sum(v540) / len(v540), m540, s540,
+                 sum(v850) / len(v850), m850, s850,
+                 cfg.max_spread_pct, cfg.min_signal, cfg.adc_max_ok)
+        # --- saturation check on the RAW values (before subtracting anything)
+        if max(v540 + v850) > cfg.adc_max_ok:            # ADC (nearly) full: too much light
+            raise OpticalError(4, "optical over-range: ADC saturated (%.0f counts)" % max(v540 + v850))
         # --- signal too small?
         if m850 < cfg.min_signal:                        # the IR light is not absorbed by blood, so a weak IR signal = hardware fault
             raise OpticalError(2, "sensor fault: IR signal too low (%.0f counts)" % m850)
@@ -138,8 +153,7 @@ class OpticalReader:
             if kind == "blank":                          # a clear blank must be bright -> LED or sensor problem
                 raise OpticalError(2, "sensor fault: 540 nm blank too low (%.0f counts)" % m540)
             raise OpticalError(4, "optical over-range: sample too dark (%.0f counts)" % m540)   # sample too concentrated
-        # --- stability check (requirement CAL-3)
-        s540, s850 = self._spread_pct(net540), self._spread_pct(net850)   # disagreement between rounds
+        # --- stability check
         if max(s540, s850) > cfg.max_spread_pct:         # too noisy to trust
             raise OpticalError(2, "unstable reading: spread %.2f %% / %.2f %%" % (s540, s850))
         return Reading(dark=dark, net540=m540, net850=m850, spread540=s540, spread850=s850)
