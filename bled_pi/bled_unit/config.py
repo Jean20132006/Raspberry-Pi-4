@@ -43,8 +43,8 @@ class Config:
     adc_max_ok: int = 30000                # [TUNE] above this the ADC is nearly saturated -> "over-range"
 
     # ------------------------------------------------------------------ optical reading (see slide "Reading the sensor reliably")
-    dark_settle_s: float = 0.20            # [TUNE] wait after all LEDs are off, before reading the dark level
-    led_settle_s: float = 0.35             # [TUNE] wait after switching an LED on (LED + photodiode settle)
+    dark_settle_s: float = 0.50            # [TUNE] wait after all LEDs are off, before reading the dark level
+    led_settle_s: float = 0.50             # [TUNE] wait after switching an LED on (LED + photodiode settle)
     samples_per_average: int = 16          # [TUNE] ADC samples averaged for one value (N in the slide)
     warmup_rounds: int = 2                 # [TUNE] first rounds are thrown away (LED warm-up)
     kept_rounds: int = 5                   # [TUNE] rounds that are kept and averaged
