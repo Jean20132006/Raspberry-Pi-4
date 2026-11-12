@@ -43,8 +43,8 @@ class Config:
     adc_max_ok: int = 30000                # [TUNE] above this the ADC is nearly saturated -> "over-range"
 
     # ------------------------------------------------------------------ optical reading (see slide "Reading the sensor reliably")
-    dark_settle_s: float = 0.10            # [TUNE] wait after all LEDs are off, before reading the dark level
-    led_settle_s: float = 0.25             # [TUNE] wait after switching an LED on (LED + photodiode settle)
+    dark_settle_s: float = 0.50            # [TUNE] wait after all LEDs are off, before reading the dark level
+    led_settle_s: float = 0.55             # [TUNE] wait after switching an LED on (LED + photodiode settle)
     samples_per_average: int = 16          # [TUNE] ADC samples averaged for one value (N in the slide)
     warmup_rounds: int = 2                 # [TUNE] first rounds are thrown away (LED warm-up)
     kept_rounds: int = 5                   # [TUNE] rounds that are kept and averaged
@@ -59,7 +59,7 @@ class Config:
     motor_speed: float = 0.60              # [TUNE] mixing speed, 0.0 to 1.0 of full PWM
     motor_pwm_hz: int = 1000               # [TUNE] PWM frequency (use pigpio hardware PWM 20 kHz for a quiet 40 W motor)
     motor_ramp_s: float = 2.0              # [TUNE] seconds to ramp the speed up (and down) - protects gears and gauze
-    mix_time_s: float = 20.0               # [TUNE] seconds at full mixing speed (needs an experiment: when is A540 stable?)
+    mix_time_s: float = 1000.0               # [TUNE] seconds at full mixing speed (needs an experiment: when is A540 stable?)
     settle_after_mix_s: float = 8.0        # [TUNE] wait for bubbles and fibres to settle before the sample reading
 
     # ------------------------------------------------------------------ calibration (Beer-Lambert -> millilitres)
