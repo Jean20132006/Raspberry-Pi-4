@@ -40,7 +40,7 @@ class Config:
     # ------------------------------------------------------------------ ADC (ADS1115) settings
     adc_sample_period_s: float = 0.009     # ADS1115 runs at 128 samples/s = one result every 7.8 ms; wait a bit more
     adc_full_scale: int = 32767            # biggest positive value of a signed 16-bit ADC reading
-    adc_max_ok: int = 30000                # [TUNE] above this the ADC is nearly saturated -> "over-range"
+    adc_max_ok: int = 32500                # [TUNE] above this the ADC is nearly saturated -> "over-range"
 
     # ------------------------------------------------------------------ optical reading (see slide "Reading the sensor reliably")
     dark_settle_s: float = 0.50            # [TUNE] wait after all LEDs are off, before reading the dark level
