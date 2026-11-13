@@ -5,18 +5,18 @@ Python 3 program that runs on the Raspberry Pi 4 inside the BLED.  It
 * fires the two LEDs (540 nm and 850-880 nm), **one at a time**, and reads the OPT101 photodiode through an ADS1115 ADC,
 * runs the motor that mixes the reagent with the blood from the gauze,
 * computes the blood volume of every pad (Beer-Lambert, turbidity correction, patient haemoglobin),
-* talks to the display over the UART with the frames you already have (`$PAD,3,41.2*33E9`),
+* talks to the display over the UART with the frames 
 * writes every pad to a CSV file and survives power cuts.
 
 ## How a pad is measured
 
 ```
 operator inserts gauze  ->  presses START  (the display must have an active case)
- 1. BLANK   dark reading + 540 nm / IR readings of the clear reagent         (CAL-1: every pad has its own blank)
+ 1. BLANK   dark reading + 540 nm / IR readings of the clear reagent         
  2. MIX     motor ramps up, runs mix_time_s, ramps down, solution settles
  3. SAMPLE  dark reading + 540 nm / IR readings of the mixed solution
  4. A540 = log10(blank540/sample540)   A850 = log10(blank850/sample850)
-    netA = A540 - k * A850                                  (turbidity correction)
+    netA = A540 - k * A850                      (turbidity correction)
     mL   = (slope * netA + intercept) * (Hb_calibration / Hb_patient)
  5. send  $PAD,n,mL   (repeated 3 times, the display ignores duplicates)
 ```
@@ -81,7 +81,7 @@ The log says `CALIBRATION IS NOT CONFIRMED` and every case-file row says `UNCALI
    `samples_per_average`, `max_spread_pct`, `min_signal`.
 3. **Calibration line**: put known blood volumes (0, 1, 2, 5, 10 mL ...) on gauze using blood of known haemoglobin,
    record `net_a` from the case file, fit a straight line, then enter `cal_slope_ml_per_a`, `cal_intercept_ml`,
-   `cal_hb_ref`.  The numbers in `config.py` are placeholders from the old prototype.  Set `calibration_confirmed = True`.
+   `cal_hb_ref`.  The numbers in `config.py` are placeholders that I came up with.  Set `calibration_confirmed = True`.
 4. **Range**: after each baseline the log prints `usable range: ... about N mL per pad`.  A pad bigger than that gives
    `ERR 4`.  Choose the reagent volume and LED current so that the biggest expected pad fits.
 
@@ -89,7 +89,7 @@ The log says `CALIBRATION IS NOT CONFIRMED` and every case-file row says `UNCALI
 
 * **One controller, one queue**: no race conditions; UART, button, timers and worker threads only post events.
 * **Never two LEDs on together**; LEDs and motor are forced OFF after every job, error, cancel, shutdown.
-* **Per-pad blank** (CAL-1) and blank-versus-baseline check -> `ERR 3` when the reagent is missing or wrong.
+* **Per-pad blank** and blank-versus-baseline check -> `ERR 3` when the reagent is missing or wrong.
 * **Resume, do not restart**: if a pad fails after mixing, START continues with the same blank (a new blank would be wrong).
 * **Lost-frame protection**: each `PAD` frame is repeated 3 times; the display ignores duplicate numbers.
 * **Power cut**: every row is `fsync`ed; the pad counter is saved atomically; after a reboot the next `CASE` with the same id
