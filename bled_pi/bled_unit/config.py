@@ -67,7 +67,7 @@ class Config:
     #   NetAbsorbance = A540 - turbidity_k * A_IR
     # The three numbers below come from your calibration experiment (known blood volumes on gauze).
     cal_slope_ml_per_a: float = 9.5744      # [TUNE] PLACEHOLDER from the old prototype - it does NOT transfer to new hardware
-    cal_intercept_ml: float = -0.09993      # [TUNE] PLACEHOLDER (same warning)
+    cal_intercept_ml: float = 1      # [TUNE] PLACEHOLDER (same warning)
     cal_hb_ref: float = 13.0                # [TUNE] Hb (g/dL) of the blood used for the calibration experiment
     turbidity_k: float = 1.0                # [TUNE] how much of the IR absorbance is subtracted (1.0 = all of it)
     calibration_confirmed: bool = True     # set True ONLY after you calibrated on the real unit (removes the warning)
