@@ -28,7 +28,6 @@ operator inserts gauze  ->  presses START  (the display must have an active case
 | `bled_unit/config.py` | **all** settings: pins, timings, thresholds, calibration. Edit this first |
 | `bled_unit/protocol.py` | frame encoder / parser / CRC-16 (same rules as `bled_proto.c`) |
 | `bled_unit/hardware.py` | real Raspberry Pi: GPIO (gpiozero) + ADS1115 (smbus2) |
-| `bled_unit/fake_hardware.py` | pretend hardware with simple physics, for the PC and for tests |
 | `bled_unit/sensor.py` | one reliable reading set (dark, warm-up rounds, averaging, checks) |
 | `bled_unit/calc.py` | the maths: absorbance and millilitres |
 | `bled_unit/jobs.py` | the two long operations: baseline and one pad (blank, mix, sample) |
@@ -36,22 +35,9 @@ operator inserts gauze  ->  presses START  (the display must have an active case
 | `bled_unit/link.py` | serial port + background receive thread |
 | `bled_unit/controller.py` | the state machine: IDLE, BASELINE, READY, CASE_ACTIVE, ERROR, SHUTDOWN |
 | `bled_unit/main.py` | starts everything |
-| `tools/fake_display.py` | pretends to be the display (test the Pi without the display) |
-| `tests/` | 45 automatic tests |
 | `deploy/bled-unit.service` | start automatically at boot, restart if frozen |
 
-## 1. Try it on your PC first (no hardware)
-
-```bash
-pip install pyserial
-python3 -m unittest discover -s tests -v          # all tests must pass
-python3 -m bled_unit.main --sim --port /dev/ttyUSB0 -v     # fake LEDs/motor/ADC, real serial port
-```
-In simulation the keyboard replaces the hardware: `s` = START button, `c` = remove/insert cartridge,
-`p 6` = load a pad with 6 mL of blood, `q` = quit.  Connect the PC serial adapter to the real display
-(see wiring) and the display sees a "real" measurement unit.  Or use `tools/fake_display.py` on the other side.
-
-## 2. Raspberry Pi set-up
+## 1. Raspberry Pi set-up
 
 ```bash
 sudo apt update
@@ -66,7 +52,7 @@ Automatic start: copy the folder to `/home/pi/bled_pi`, then
 `sudo cp deploy/bled-unit.service /etc/systemd/system/ && sudo systemctl enable --now bled-unit`.
 Logs: `journalctl -u bled-unit -f` and `~/bled_data/bled_unit.log`.  Case files: `~/bled_data/cases/<case id>.csv`.
 
-## 3. Wiring (BCM numbers are in `config.py`)
+## 2. Wiring (BCM numbers are in `config.py`)
 
 | Function | Pi pin | Connects to |
 |---|---|---|
@@ -86,7 +72,7 @@ Logs: `journalctl -u bled-unit -f` and `~/bled_data/bled_unit.log`.  Case files:
 
 Never drive an LED or a motor straight from a GPIO pin (max about 16 mA per pin).  The Pi only sends logic signals.
 
-## 4. Calibrate before you trust a number
+## 3. Calibrate before you trust a number
 
 The log says `CALIBRATION IS NOT CONFIRMED` and every case-file row says `UNCALIBRATED` until you do this:
 
@@ -99,7 +85,7 @@ The log says `CALIBRATION IS NOT CONFIRMED` and every case-file row says `UNCALI
 4. **Range**: after each baseline the log prints `usable range: ... about N mL per pad`.  A pad bigger than that gives
    `ERR 4`.  Choose the reagent volume and LED current so that the biggest expected pad fits.
 
-## 5. How the system protects itself
+## 4. How the system protects itself
 
 * **One controller, one queue**: no race conditions; UART, button, timers and worker threads only post events.
 * **Never two LEDs on together**; LEDs and motor are forced OFF after every job, error, cancel, shutdown.
@@ -112,7 +98,7 @@ The log says `CALIBRATION IS NOT CONFIRMED` and every case-file row says `UNCALI
 * **Lost ENDC**: a CASE with a different id closes the old case first.
 * **systemd watchdog**: restarts the program if the controller freezes.
 
-## 6. Error codes sent to the display
+## 5. Error codes sent to the display
 
 | Code | Meaning | When |
 |---|---|---|
