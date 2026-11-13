@@ -59,7 +59,7 @@ class Config:
     motor_speed: float = 0.60              # [TUNE] mixing speed, 0.0 to 1.0 of full PWM
     motor_pwm_hz: int = 1000               # [TUNE] PWM frequency (use pigpio hardware PWM 20 kHz for a quiet 40 W motor)
     motor_ramp_s: float = 2.0              # [TUNE] seconds to ramp the speed up (and down) - protects gears and gauze
-    mix_time_s: float = 1000.0               # [TUNE] seconds at full mixing speed (needs an experiment: when is A540 stable?)
+    mix_time_s: float = 60.0               # [TUNE] seconds at full mixing speed (needs an experiment: when is A540 stable?)
     settle_after_mix_s: float = 8.0        # [TUNE] wait for bubbles and fibres to settle before the sample reading
 
     # ------------------------------------------------------------------ calibration (Beer-Lambert -> millilitres)
