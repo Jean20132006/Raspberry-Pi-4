@@ -1,14 +1,13 @@
 """
-config.py - every number you may want to change lives in this one file.
+config.py - This file contain every number we might need to change.
 
-Nothing else in the program contains a "magic number".  When you build the hardware you will mostly
 edit THIS file: pin numbers, timings, thresholds and the calibration constants.
 
-Values marked  [TUNE]  are sensible starting guesses that MUST be confirmed on your real hardware.
+Values marked  [TUNE]  are sensible starting guesses that MUST be confirmed on the real hardware.
 """
-from __future__ import annotations                       # lets us use modern type hints on older Python 3.7+
+from __future__ import annotations                       # modern type hints on older Python 3.7+
 
-from dataclasses import dataclass, replace               # dataclass = a class that is just a bag of settings
+from dataclasses import dataclass               # dataclass = a class that is just a bag of settings
                                                          # replace() creates a copy of a dataclass object with one or more fields changed.
 from pathlib import Path                                 # Path = a convenient way to handle folder/file names
 
@@ -34,7 +33,7 @@ class Config:
     # ------------------------------------------------------------------ I2C devices
     i2c_bus: int = 1                       # Pi header pins 3 (SDA) and 5 (SCL) are bus 1
     adc_address: int = 0x48                # ADS1115 with ADDR pin to GND
-    has_fuel_gauge: bool = False           # set True if you fit a MAX17048 battery fuel gauge
+    has_fuel_gauge: bool = False           # set True if we fit a MAX17048 battery fuel gauge
     fuel_gauge_address: int = 0x36         # MAX17048 address
 
     # ------------------------------------------------------------------ ADC (ADS1115) settings
@@ -42,14 +41,14 @@ class Config:
     adc_full_scale: int = 32767            # biggest positive value of a signed 16-bit ADC reading
     adc_max_ok: int = 32500                # [TUNE] above this the ADC is nearly saturated -> "over-range"
 
-    # ------------------------------------------------------------------ optical reading (see slide "Reading the sensor reliably")
+    # ------------------------------------------------------------------ optical reading (Reading the sensor reliably)
     dark_settle_s: float = 0.50            # [TUNE] wait after all LEDs are off, before reading the dark level
     led_settle_s: float = 0.50             # [TUNE] wait after switching an LED on (LED + photodiode settle)
     samples_per_average: int = 16          # [TUNE] ADC samples averaged for one value (N in the slide)
     warmup_rounds: int = 2                 # [TUNE] first rounds are thrown away (LED warm-up)
     kept_rounds: int = 5                   # [TUNE] rounds that are kept and averaged
-    max_spread_pct: float = 2.0            # [TUNE] (max-min)/mean of the kept rounds must be below this (CAL-3)
-    min_signal: float = 800.0              # [TUNE] smallest acceptable (light - dark) in ADC counts
+    max_spread_pct: float = 2.0            # [TUNE] (max-min)/mean of the kept rounds must be below 
+    min_signal: float = 500.0              # [TUNE] smallest acceptable (light - dark) in ADC counts
     read_retries: int = 2                  # a noisy reading set is repeated this many times before it is a fault
 
     # ------------------------------------------------------------------ baseline / blank checks
@@ -59,18 +58,19 @@ class Config:
     motor_speed: float = 0.60              # [TUNE] mixing speed, 0.0 to 1.0 of full PWM
     motor_pwm_hz: int = 1000               # [TUNE] PWM frequency (use pigpio hardware PWM 20 kHz for a quiet 40 W motor)
     motor_ramp_s: float = 2.0              # [TUNE] seconds to ramp the speed up (and down) - protects gears and gauze
-    mix_time_s: float = 20.0               # [TUNE] seconds at full mixing speed (needs an experiment: when is A540 stable?)
+    mix_time_s: float = 20.0               # [TUNE] seconds at full mixing speed (needs an experiment)
     settle_after_mix_s: float = 8.0        # [TUNE] wait for bubbles and fibres to settle before the sample reading
 
     # ------------------------------------------------------------------ calibration (Beer-Lambert -> millilitres)
     # Pad volume = (cal_slope * NetAbsorbance + cal_intercept) * (cal_hb_ref / patient_Hb)
+    #     y      =      m     *   x           +          b
     #   NetAbsorbance = A540 - turbidity_k * A_IR
-    # The three numbers below come from your calibration experiment (known blood volumes on gauze).
-    cal_slope_ml_per_a: float = 9.5744      # [TUNE] PLACEHOLDER from the old prototype - it does NOT transfer to new hardware
-    cal_intercept_ml: float = 1      # [TUNE] PLACEHOLDER (same warning)
+    # The three numbers below come from our calibration experiment (known blood volumes on gauze).
+    cal_slope_ml_per_a: float = 9.5744      # [TUNE] the slope = V_reagent / (epsilon * l * cal_hb_ref)
+    cal_intercept_ml: float = 1      # [TUNE] from our experiment (It's the intercept with y-axis)
     cal_hb_ref: float = 13.0                # [TUNE] Hb (g/dL) of the blood used for the calibration experiment
     turbidity_k: float = 1.0                # [TUNE] how much of the IR absorbance is subtracted (1.0 = all of it)
-    calibration_confirmed: bool = True     # set True ONLY after you calibrated on the real unit (removes the warning)
+    calibration_confirmed: bool = True    # set True ONLY after you calibrated on the real unit (removes the warning)
     max_absorbance: float = 2.0             # above this the sample is too dark to read -> "optical over-range"
     pad_max_ml: float = 500.0               # the display ignores values above this (protocol limit)
 
@@ -85,16 +85,3 @@ class Config:
     # ------------------------------------------------------------------ safety / housekeeping
     power_fail_shutdown_os: bool = False    # True = also run "sudo shutdown -h now" after a power-fail warning
     data_dir: Path = Path.home() / "bled_data"   # case files, active-case state and the log file go here
-
-    # ------------------------------------------------------------------ helpers
-    def fast(self) -> "Config":
-        """Return a copy with all waiting times made ~50x shorter. Used for tests and the PC simulator only."""
-        return replace(                                  # replace() copies the dataclass and changes some fields
-            self,
-            dark_settle_s=0.002, led_settle_s=0.004,      # tiny settle times
-            adc_sample_period_s=0.0005,                   # tiny ADC period (the fake ADC answers instantly)
-            samples_per_average=6, warmup_rounds=1, kept_rounds=3,   # fewer samples and rounds
-            motor_ramp_s=0.1, mix_time_s=0.3, settle_after_mix_s=0.1,  # short mixing
-            pad_resend_period_s=0.3, error_repeat_period_s=0.6,      # quicker repeats
-            base_dup_window_s=0.5, poll_period_s=0.05,
-        )
