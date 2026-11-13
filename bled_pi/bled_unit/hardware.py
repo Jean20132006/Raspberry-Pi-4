@@ -1,8 +1,7 @@
 """
 hardware.py - the ONLY file that touches the real Raspberry Pi pins and the I2C bus.
 
-All other files talk to a "Hardware" object with the methods below.  That makes it possible to run the whole
-program on a normal PC with fake_hardware.FakeHardware, and to test the logic before the electronics exist.
+All other files talk to a "Hardware" object with the methods below, so only this file knows about the pins.
 
 Pin and device summary (numbers are in config.py):
     LED 540 nm, LED IR     -> two GPIO outputs, each switching a constant-current LED driver (NEVER a bare GPIO!)
@@ -21,7 +20,7 @@ from .config import Config                               # pin numbers and I2C a
 
 
 class Hardware:                                         # the interface every hardware class must implement
-    """The interface every hardware implementation (real or fake) must provide."""
+    """The interface every hardware implementation must provide."""
 
     def set_start_callback(self, callback: Callable[[], None]) -> None:  # who to call when START is pressed
         """Register a function that is called (from another thread) every time START is pressed."""
@@ -83,8 +82,7 @@ class PiHardware(Hardware):                             # the real Raspberry Pi 
     _CONFIG_WORD = 0x4000 | 0x0400 | 0x0000 | 0x0080 | 0x0003  # the 16-bit value written to the ADS1115 config register
 
     def __init__(self, cfg: Config) -> None:            # constructor: open every pin and the I2C bus
-        # The libraries are imported HERE (not at the top of the file) so that a PC without them can still
-        # import this module and run the simulator.
+        # The libraries are imported HERE (not at the top of the file) so this module can be imported on a PC.
         from gpiozero import Button, DigitalInputDevice, DigitalOutputDevice, PWMOutputDevice
         import smbus2
 
