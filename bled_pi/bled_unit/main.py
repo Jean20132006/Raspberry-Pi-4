@@ -2,7 +2,6 @@
 main.py - starts the program.
 
     On the Raspberry Pi:    python3 -m bled_unit.main
-    On a PC (no hardware):  python3 -m bled_unit.main --sim --port /dev/ttyUSB0      (needs pyserial)
 
 Start-up order: logging -> hardware -> serial link -> controller -> run until Ctrl-C / SIGTERM / power fail.
 """
@@ -62,27 +61,17 @@ def systemd_watchdog(controller: Controller, interval_s: float = 5.0) -> None:  
 def main(argv=None) -> int:                             # main(): the program entry point
     ap = argparse.ArgumentParser(description="BLED measurement unit (Raspberry Pi 4)")  # describes the command line options
     ap.add_argument("--port", help="serial port (default from config.py: /dev/serial0)")  # --port overrides the serial port from config.py
-    ap.add_argument("--sim", action="store_true", help="use FAKE hardware (for a PC, no Raspberry Pi needed)")  # --sim = run with fake hardware on a PC
     ap.add_argument("-v", "--verbose", action="store_true", help="log every frame")  # -v = log every frame
     args = ap.parse_args(argv)                          # read the command line
 
     cfg = Config()                                       # default settings (edit config.py to change them)
     if args.port:                                       # a port was given on the command line
         cfg.serial_port = args.port                      # command line overrides config.py
-    if args.sim:                                        # in simulation use short waiting times
-        cfg = cfg.fast()                                 # short waits so a simulated pad takes about a second
     setup_logging(cfg, args.verbose)                    # start logging
     log = logging.getLogger("bled.main")                # logger for this file
 
-    if args.sim:                                         # --- fake hardware, keyboard instead of a button
-        from .fake_hardware import FakeHardware
-        hw = FakeHardware(cfg)                          # fake LEDs, motor and ADC
-        hw.load_pad_ml(6.0, 13.0)                        # a pad with 6 mL of blood is "in the chamber"
-        log.info("SIMULATION: type  s + Enter  = START button,  c = remove/insert cartridge,  "  # tell the user how to control the simulator
-                 "p <ml> = load a pad with <ml> mL (Hb 13),  q = quit")  # (second part of the message)
-    else:                                                # --- the real Raspberry Pi
-        from .hardware import PiHardware
-        hw = PiHardware(cfg)                            # the real Raspberry Pi hardware
+    from .hardware import PiHardware
+    hw = PiHardware(cfg)                                # the real Raspberry Pi hardware
 
     port = open_serial(cfg.serial_port, cfg.baud)        # open /dev/serial0
     holder: dict = {}                                    # lets the Link callback find the controller created afterwards
@@ -95,25 +84,6 @@ def main(argv=None) -> int:                             # main(): the program en
         ctrl.request_shutdown("signal %d" % signum)     # ask the controller to stop cleanly
     signal.signal(signal.SIGINT, stop)                  # Ctrl-C
     signal.signal(signal.SIGTERM, stop)                 # systemctl stop
-
-    if args.sim:                                         # keyboard commands for the simulator
-        def keys() -> None:                             # keyboard thread for the simulator
-            for line in sys.stdin:                      # read typed lines
-                w = line.split()                        # split into words
-                if not w:                               # empty line
-                    continue                            # ignore it
-                if w[0] == "s":                         # s = START button
-                    hw.press_start()                    # pretend the button was pressed
-                elif w[0] == "c":                       # c = cartridge
-                    hw.cartridge = not hw.cartridge     # toggle: inserted <-> removed
-                    print("cartridge present:", hw.cartridge)  # tell the user
-                elif w[0] == "p":                       # p = load a pad with some blood
-                    hw.load_pad_ml(float(w[1]) if len(w) > 1 else 6.0, 13.0)  # default 6 mL of blood at Hb 13
-                    print("pad loaded")                 # tell the user
-                elif w[0] == "q":                       # q = quit
-                    ctrl.request_shutdown("keyboard")   # ask for a clean shutdown
-                    return                              # end of the keyboard thread
-        threading.Thread(target=keys, daemon=True).start()  # start the keyboard thread
 
     link.start()                                         # start receiving
     systemd_watchdog(ctrl)                               # tell systemd we are alive (only when run as a service)
