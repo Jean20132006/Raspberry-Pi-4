@@ -1,7 +1,7 @@
 """
 controller.py - the brain: ONE state machine that owns all decisions.
 
-Everything that happens is turned into an EVENT and put in one queue (slide "one controller, many producers"):
+Everything that happens is turned into an EVENT and put in one queue :
 
     UART thread        -> MSG       a valid frame arrived from the display (BASE, CASE, ENDC, PING)
     START button       -> BUTTON    the operator pressed START
@@ -64,7 +64,7 @@ class Controller:                                       # the controller class
 
     def __init__(self, cfg: Config, hw: Hardware, link: Link, clock: Callable[[], float] = time.monotonic) -> None:  # constructor: receives everything the controller needs
         self.cfg, self.hw, self.link = cfg, hw, link     # settings, hardware, serial link
-        self.clock = clock                               # time source (replaced by a fake clock in tests)
+        self.clock = clock                               # time source 
         self.q: "queue.Queue[Event]" = queue.Queue()     # THE event queue
 
         self.state = State.BOOT                          # current state
@@ -119,22 +119,29 @@ class Controller:                                       # the controller class
         self._boot()                                     # self-test, restore info
         self._ticker_running = True                     # tell the ticker thread it may run
         threading.Thread(target=self._ticker, name="ticker", daemon=True).start()   # POLL events
-        handlers = {                                     # event kind -> method that handles it
-            "MSG": self._on_msg, "BUTTON": self._on_button, "POLL": self._on_poll,  # message from the display, START button, 0.25 s poll
-            "JOB_PROGRESS": self._on_job_progress, "JOB_DONE": self._on_job_done,  # progress / success / failure reports from worker threads
-            "JOB_FAIL": self._on_job_fail, "SHUTDOWN": lambda reason: self._shutdown(str(reason)),  # SHUTDOWN: reason text is passed to _shutdown()
-        }                                               # end of the handler table
         while self.state is not State.SHUTDOWN:          # loop until we are told to stop
             try:                                        # protect against an empty queue
                 ev = self.q.get(timeout=0.5)             # wait for the next event
             except queue.Empty:                         # no event arrived within 0.5 s
                 continue                                 # nothing happened: look again
-            handler = handlers.get(ev.kind)              # find the handler
-            if handler is None:                          # unknown event kind = programming error
-                log.error("unknown event %s", ev.kind)  # should never happen: log it
-                continue                                # skip this event and read the next one
             try:                                        # run the handler inside a safety net
-                handler(ev.data)                         # do the work
+                match ev.kind:                           # look at the kind of event and pick the matching case
+                    case "MSG":                          # a message arrived from the display
+                        self._on_msg(ev.data)
+                    case "BUTTON":                       # the START button was pressed
+                        self._on_button(ev.data)
+                    case "POLL":                         # the 0.25 s timer tick
+                        self._on_poll(ev.data)
+                    case "JOB_PROGRESS":                 # a worker thread reports progress
+                        self._on_job_progress(ev.data)
+                    case "JOB_DONE":                     # a worker thread finished successfully
+                        self._on_job_done(ev.data)
+                    case "JOB_FAIL":                     # a worker thread failed
+                        self._on_job_fail(ev.data)
+                    case "SHUTDOWN":                     # Ctrl-C, systemctl stop or a power failure
+                        self._shutdown(str(ev.data))     # the reason text is passed to _shutdown()
+                    case _:                              # any other kind = programming error
+                        log.error("unknown event %s", ev.kind)   # should never happen: log it
             except Exception:                            # a bug must NOT stop the machine: log it and go to ERROR
                 log.exception("error while handling %s", ev.kind)  # write the full traceback to the log
                 self._enter_error(2, "internal error", self.state if self.state is not State.ERROR else self.return_state)  # stop motor/LEDs and tell the display; remember where to come back to
@@ -208,16 +215,17 @@ class Controller:                                       # the controller class
     # ================================================================================== messages from the display
     def _on_msg(self, msg) -> None:                     # dispatch a message from the display
         """Dispatch a message from the display."""
-        if msg.type == "PING":                           # heartbeat: nothing to do (STAT is sent anyway)
-            return                                      # nothing to do for a heartbeat
-        if msg.type == "BASE":                          # display asks for the baseline
-            self._cmd_base()                            # start it
-        elif msg.type == "CASE":                        # display opens a case
-            self._cmd_case(msg.args)                    # pass the arguments (id, Hb)
-        elif msg.type == "ENDC":                        # display closes the case
-            self._cmd_endc()                            # close it
-        else:                                           # anything else: ignore (forward compatible)
-            log.debug("ignoring unknown message %s", msg.type)   # forward compatible: unknown types are harmless
+        match msg.type:                                  # look at the message type and pick the matching case
+            case "PING":                                 # heartbeat: nothing to do (STAT is sent anyway)
+                pass                                     # nothing to do for a heartbeat
+            case "BASE":                                 # display asks for the baseline
+                self._cmd_base()                         # start it
+            case "CASE":                                 # display opens a case
+                self._cmd_case(msg.args)                 # pass the arguments (id, Hb)
+            case "ENDC":                                 # display closes the case
+                self._cmd_endc()                         # close it
+            case _:                                      # anything else: ignore (forward compatible)
+                log.debug("ignoring unknown message %s", msg.type)  # forward compatible: unknown types are harmless
 
     def _cmd_base(self) -> None:                        # _cmd_base(): handle the BASE message
         """BASE: run the optical baseline."""
@@ -429,6 +437,8 @@ class Controller:                                       # the controller class
         # duplicate pad numbers, so repeating is harmless but protects against a lost frame.
         self._resend.append([body, self.cfg.pad_resend_count, self.clock() + self.cfg.pad_resend_period_s])  # schedule 3 repeats (see comment above)
         log.info("pad %d = %.1f mL (total %.1f mL) %s", self.pad_n, r.ebl_ml, self.total_ml, " ".join(r.flags))  # one line in the log
+        log.info("pad %d absorbance: A540=%.4f  A850=%.4f  net A=%.4f  (blank540=%.0f sample540=%.0f, blank850=%.0f sample850=%.0f)",
+                 self.pad_n, r.a540, r.a850, r.net_a, out.blank.net540, out.sample.net540, out.blank.net850, out.sample.net850)  # the numbers needed for the calibration graph
         self._send_stat()                               # STAT right away
 
     def _on_job_fail(self, data) -> None:               # _on_job_fail(): a job failed with an ERR code
